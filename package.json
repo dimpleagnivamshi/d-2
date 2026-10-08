@@ -1,0 +1,13 @@
+{
+  "name": "sensor-app-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend service for the sensor live data application",
+  "main": "server.js",
+  "scripts": { 
+    "start": "node server.js", 
+    "dev": "node --watch server.js" 
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": { "pg": "^8.16.3" }
+}

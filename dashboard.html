@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Needed for the "Download Excel Log" export button -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <div id="pageHeader"></div>
+
+    <!-- LIVE FEED CONTROLS -->
+    <div class="controls live-controls">
+        <button id="downloadLog" class="btn-download">&#8681; Download Excel Log</button>
+        <span id="liveStatus" class="status">Feed stopped.</span>
+    </div>
+
+    <!-- SYSTEM INTERRUPT CONTROLS -->
+    <div class="control-panel" style="margin-bottom: 20px; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+        <button id="btn-interrupt-d2" onclick="toggleInterrupt('d2')" style="padding: 10px 20px; background: #0891b2; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">
+            Interrupt Device 2 (Dependent)
+        </button>
+    </div>
+
+    <!-- Charts are inserted here by dashboard.js -->
+    <div id="chartGrid" class="dashboard-grid"></div>
+
+    <script src="pages.js"></script>
+    <script src="nav.js"></script>
+    <script src="charts.js"></script>
+    <script src="realtime.js"></script>
+
+    <script src="dashboard.js"></script>
+
+</body>
+
+</html>

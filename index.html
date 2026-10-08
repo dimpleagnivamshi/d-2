@@ -1,0 +1,65 @@
+    <!DOCTYPE html>
+    <html lang="en">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Graph Explorer</title>
+
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        
+        <link rel="stylesheet" href="style.css">
+    </head>
+
+    <body>
+
+        <!-- HEADER + NAV (built by nav.js) -->
+        <div id="pageHeader"></div>
+
+        <!-- CONTROLS -->
+        <div class="controls">
+            <div class="control-row">
+
+                <div class="control">
+                    <label for="xAxis">X-Axis</label>
+                    <select id="xAxis"></select>
+                </div>
+
+                <div class="control">
+                    <label for="yAxis">Y-Axis</label>
+                    <select id="yAxis"></select>
+                </div>
+
+                <div class="control" id="timeFormatControl">
+                    <label for="timeFormat">Timestamp Precision</label>
+                    <select id="timeFormat">
+                        <option value="hours">Hours</option>
+                        <option value="minutes" selected>Minutes</option>
+                        <option value="seconds">Seconds</option>
+                        <option value="milliseconds">Milliseconds</option>
+                    </select>
+                </div>
+
+            </div>
+
+            <div id="status" class="status">Loading live readings...</div>
+        </div>
+
+        <!-- CHART -->
+        <div class="chart-container">
+            <canvas id="myChart"></canvas>
+        </div>
+
+        <!-- SHARED SCRIPTS -->
+        <script src="pages.js"></script>
+        <script src="nav.js"></script>
+        <script src="charts.js"></script>
+        <script src="realtime.js"></script>
+        <script src="data.js"></script>
+        
+        <!-- PAGE SCRIPT -->
+        <script src="explorer.js"></script>
+
+    </body>
+
+    </html>

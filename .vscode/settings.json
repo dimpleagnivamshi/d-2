@@ -1,0 +1,17 @@
+{
+    "sqltools.connections": [
+        {
+            "pgOptions": {
+                "ssl": {
+                    "rejectUnauthorized": true
+                }
+            },
+            "ssh": "Disabled",
+            "previewLimit": 50,
+            "server": "localhost",
+            "driver": "PostgreSQL",
+            "connectString": "postgres://postgres:C1WXvSLYBy6R9hEMgsRw0rFfkU2JlLYV@db-f1c4b8453015.db.getvoroa.com:20972/postgres?sslmode=require",
+            "name": "Voroa Sensor Database"
+        }
+    ]
+}
