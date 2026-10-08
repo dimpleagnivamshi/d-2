@@ -7,7 +7,7 @@ const pool = new Pool({
 
 async function initializeStorage() {
     await pool.query(`
-        CREATE TABLE IF NOT EXISTS device2_telemetry_active_stream (
+        CREATE TABLE IF NOT EXISTS telemetry_active_stream (
             id SERIAL PRIMARY KEY,
             timestamp TIMESTAMPTZ NOT NULL,
             payload JSONB NOT NULL
@@ -39,8 +39,9 @@ async function setFeedState(running, values) {
 
 async function saveReading(reading) {
     const timestamp = reading.timestamp || new Date().toISOString();
+    // Writes directly to the main shared telemetry table so d-2 seamlessly continues d-1's stream!
     const res = await pool.query(
-        "INSERT INTO device2_telemetry_active_stream (timestamp, payload) VALUES ($1, $2) RETURNING id, timestamp, payload",
+        "INSERT INTO telemetry_active_stream (timestamp, payload) VALUES ($1, $2) RETURNING id, timestamp, payload",
         [timestamp, JSON.stringify(reading)]
     );
     const row = res.rows[0];
@@ -48,15 +49,34 @@ async function saveReading(reading) {
 }
 
 async function getLatestReading() {
-    const res = await pool.query("SELECT id, timestamp, payload FROM device2_telemetry_active_stream ORDER BY id DESC LIMIT 1");
+    const res = await pool.query("SELECT id, timestamp, payload FROM telemetry_active_stream ORDER BY id DESC LIMIT 1");
     if (res.rows.length === 0) return null;
     const row = res.rows[0];
     return { id: row.id, timestamp: row.timestamp, ...row.payload };
 }
 
 async function getReadingCount() {
-    const res = await pool.query("SELECT COUNT(*) FROM device2_telemetry_active_stream");
+    const res = await pool.query("SELECT COUNT(*) FROM telemetry_active_stream");
     return parseInt(res.rows[0].count, 10);
+}
+
+async function listReadings(options = 100) {
+    let limit = 100;
+    if (typeof options === 'object' && options !== null) {
+        limit = options.limit || 100;
+    } else if (typeof options === 'number') {
+        limit = options;
+    }
+
+    const res = await pool.query(
+        "SELECT id, timestamp, payload FROM telemetry_active_stream ORDER BY id DESC LIMIT $1",
+        [limit]
+    );
+    return res.rows.reverse().map(row => ({
+        id: row.id,
+        timestamp: row.timestamp,
+        ...(typeof row.payload === 'object' ? row.payload : JSON.parse(row.payload))
+    }));
 }
 
 async function closeStorage() {
@@ -70,5 +90,6 @@ module.exports = {
     saveReading,
     getLatestReading,
     getReadingCount,
+    listReadings,
     closeStorage
 };
