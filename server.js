@@ -30,7 +30,7 @@ function loadConfig() {
         process.loadEnvFile(envFile);
     }
 
-    const databaseUrlStr = process.env.DATABASE_URL || "postgresql://neondb_owner:npg_O9ucklhRI0Eq@ep-red-sea-b4a065l9-pooler.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require";
+    const databaseUrlStr = process.env.DATABASE_URL || "postgresql://neondb_owner:npg_piIe2BMfYD5r@ep-empty-shape-b4st7avb-pooler.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require";
     try {
         new URL(databaseUrlStr);
     } catch {
