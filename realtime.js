@@ -1,7 +1,7 @@
 /* Browser client for the backend-owned live feed. No generation or browser database. */
 
 // 1. Updated API_BASE_URL to point to your live Voroa backend instead of the local server
-const API_BASE_URL = window.SENSOR_API_BASE_URL || "https://device-2.getvoroa.com";
+const API_BASE_URL = window.SENSOR_API_BASE_URL || "https://d-1.getvoroa.com";
 
 const LIVE_PAGE_LIMIT = 5000;
 let lastKnownReadingId = 0;
