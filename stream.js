@@ -19,12 +19,12 @@ function createStreamHub(storage) {
         try {
             let cursor = client.lastId;
             while (true) {
-                const replay = await storage.listReadings({ afterId: cursor, limit: 5000 });
+                const replay = await storage.listReadings({ afterId: cursor, limit: 500 });
                 for (const row of replay) {
                     if (row.id > client.lastId) send(client, row);
                     cursor = Math.max(cursor, row.id);
                 }
-                if (replay.length < 5000) break;
+                if (replay.length < 500) break;
             }
             client.ready = true;
             client.pending.sort((a, b) => a.id - b.id);
@@ -47,5 +47,3 @@ function createStreamHub(storage) {
     return { handle, publish };
 }
 module.exports = { createStreamHub };
-
-

@@ -35,7 +35,8 @@ class FeedGenerator {
         const latest = await this.storage.getLatestReading();
         if (latest) {
             for (const key of Object.keys(DEFAULTS)) {
-                if (Number.isFinite(Number(latest[key]))) this.values[key] = Number(latest[key]);
+                const val = latest[key] !== undefined ? latest[key] : (latest.payload && latest.payload[key]);
+                if (Number.isFinite(Number(val))) this.values[key] = Number(val);
             }
         }
         await this.start();
@@ -94,12 +95,10 @@ class FeedGenerator {
             return;
         }
 
-        // The moment d-1 goes inactive, grab the absolute latest reading from DB to sync d-2's start values
         if (this.wasD1ActiveLastCheck) {
             const latest = await this.storage.getLatestReading();
             if (latest) {
                 for (const key of Object.keys(DEFAULTS)) {
-                    // Check both direct property and payload property to prevent undefined values
                     const val = latest[key] !== undefined ? latest[key] : (latest.payload && latest.payload[key]);
                     if (Number.isFinite(Number(val))) {
                         this.values[key] = Number(val);
