@@ -27,7 +27,7 @@ class FeedGenerator {
         this.values = initialValues();
         this.lastTickAt = 0;
         this.d1Url = process.env.DEVICE_1_URL || "https://d-1.getvoroa.com";
-        this.wasD1ActiveLastCheck = true; // Tracks state transition
+        this.wasD1ActiveLastCheck = true;
     }
 
     async initialize() {
@@ -39,7 +39,6 @@ class FeedGenerator {
                 if (Number.isFinite(Number(latest[key]))) this.values[key] = Number(latest[key]);
             }
         }
-        // Start d-2 in background monitoring mode
         await this.start();
     }
 
@@ -59,20 +58,17 @@ class FeedGenerator {
         };
     }
 
-   async checkD1Active() {
+    async checkD1Active() {
         try {
             const res = await fetch(`${this.d1Url}/api/status`, { 
-                signal: AbortSignal.timeout(3000) 
+                signal: AbortSignal.timeout(5000) 
             });
             if (res.ok) {
                 const data = await res.json();
-                console.log("D-1 status check response:", data);
                 return Boolean(data.running);
-            } else {
-                console.warn(`D-1 status check failed with HTTP status: ${res.status}`);
             }
-        } catch (err) {
-            console.error("Error fetching D-1 status from:", `${this.d1Url}/api/status`, err.message);
+        } catch {
+            // Suppress minor network/abort errors during d-1 cold starts
         }
         return false;
     }
@@ -99,11 +95,9 @@ class FeedGenerator {
     async tick() {
         if (!this.running) return;
 
-        // Check if d-1 is currently working/active
         const d1IsActive = await this.checkD1Active();
 
         if (d1IsActive) {
-            // Condition: d-1 is working -> d-2 stays completely idle
             this.wasD1ActiveLastCheck = true;
             this.lastTickAt = Date.now();
             if (this.running) {
@@ -112,8 +106,6 @@ class FeedGenerator {
             return;
         }
 
-        // Condition: d-1 is interrupted! 
-        // If d-2 was just idle, sync values instantly to where d-1 left off from the shared DB
         if (this.wasD1ActiveLastCheck) {
             const latest = await this.storage.getLatestReading();
             if (latest) {
@@ -123,7 +115,7 @@ class FeedGenerator {
                     }
                 }
             }
-            this.wasD1ActiveLastCheck = false; // Mark that d-2 has taken over
+            this.wasD1ActiveLastCheck = false;
         }
 
         const now = Date.now();
@@ -135,7 +127,6 @@ class FeedGenerator {
         }
 
         try {
-            // d-2 writes the active failover stream into the shared table
             const saved = await this.storage.saveReading(row);
             this.stream.publish(saved);
         } catch (error) {

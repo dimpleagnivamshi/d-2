@@ -2,7 +2,15 @@ const { Pool } = require("pg");
 
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
+    ssl: { rejectUnauthorized: false },
+    connectionTimeoutMillis: 15000,
+    idleTimeoutMillis: 30000,
+    keepAlive: true,
+    max: 5
+});
+
+pool.on('error', (err) => {
+    console.error('Unexpected database pool error:', err);
 });
 
 async function initializeStorage() {
@@ -39,7 +47,6 @@ async function setFeedState(running, values) {
 
 async function saveReading(reading) {
     const timestamp = reading.timestamp || new Date().toISOString();
-    // Writes directly to the main shared telemetry table so d-2 seamlessly continues d-1's stream!
     const res = await pool.query(
         "INSERT INTO telemetry_active_stream (timestamp, payload) VALUES ($1, $2) RETURNING id, timestamp, payload",
         [timestamp, JSON.stringify(reading)]
