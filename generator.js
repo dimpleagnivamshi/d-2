@@ -26,7 +26,6 @@ class FeedGenerator {
         this.running = false;
         this.values = initialValues();
         this.lastTickAt = 0;
-        this.d1Url = process.env.DEVICE_1_URL || "https://d-1.getvoroa.com";
         this.wasD1ActiveLastCheck = true;
     }
 
@@ -39,15 +38,17 @@ class FeedGenerator {
                 if (Number.isFinite(Number(latest[key]))) this.values[key] = Number(latest[key]);
             }
         }
+        // Start d-2 in background monitoring mode
         await this.start();
     }
 
     async status() {
-        const [count, latest] = await Promise.all([
+        const [count, latest, d1State] = await Promise.all([
             this.storage.getReadingCount(),
-            this.storage.getLatestReading()
+            this.storage.getLatestReading(),
+            this.storage.getD1FeedState() // Checks d-1 state directly from DB
         ]);
-        const d1Active = await this.checkD1Active();
+        const d1Active = Boolean(d1State && d1State.running);
         return {
             running: this.running,
             d1Active: d1Active,
@@ -56,21 +57,6 @@ class FeedGenerator {
             latestId: latest ? latest.id : 0,
             latestTimestamp: latest ? latest.timestamp : null
         };
-    }
-
-    async checkD1Active() {
-        try {
-            const res = await fetch(`${this.d1Url}/api/status`, { 
-                signal: AbortSignal.timeout(5000) 
-            });
-            if (res.ok) {
-                const data = await res.json();
-                return Boolean(data.running);
-            }
-        } catch {
-            // Suppress minor network/abort errors during d-1 cold starts
-        }
-        return false;
     }
 
     async start() {
@@ -95,9 +81,12 @@ class FeedGenerator {
     async tick() {
         if (!this.running) return;
 
-        const d1IsActive = await this.checkD1Active();
+        // Check d-1's running state directly from the shared database (instant & reliable)
+        const d1State = await this.storage.getD1FeedState();
+        const d1IsActive = Boolean(d1State && d1State.running);
 
         if (d1IsActive) {
+            // Condition 1: d-1 is working -> d-2 stays completely idle
             this.wasD1ActiveLastCheck = true;
             this.lastTickAt = Date.now();
             if (this.running) {
@@ -106,6 +95,7 @@ class FeedGenerator {
             return;
         }
 
+        // Condition 2: d-1 is interrupted! 
         if (this.wasD1ActiveLastCheck) {
             const latest = await this.storage.getLatestReading();
             if (latest) {
@@ -115,7 +105,7 @@ class FeedGenerator {
                     }
                 }
             }
-            this.wasD1ActiveLastCheck = false;
+            this.wasD1ActiveLastCheck = false; // d-2 takes over
         }
 
         const now = Date.now();

@@ -37,6 +37,12 @@ async function getFeedState() {
     return res.rows[0];
 }
 
+async function getD1FeedState() {
+    const res = await pool.query("SELECT running, last_values FROM feed_state WHERE key = 'd1_state'");
+    if (res.rows.length === 0) return { running: false };
+    return res.rows[0];
+}
+
 async function setFeedState(running, values) {
     await pool.query(`
         INSERT INTO feed_state (key, running, last_values, updated_at)
@@ -93,6 +99,7 @@ async function closeStorage() {
 module.exports = {
     initializeStorage,
     getFeedState,
+    getD1FeedState,
     setFeedState,
     saveReading,
     getLatestReading,
