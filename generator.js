@@ -38,7 +38,6 @@ class FeedGenerator {
                 if (Number.isFinite(Number(latest[key]))) this.values[key] = Number(latest[key]);
             }
         }
-        // Start d-2 in background monitoring mode
         await this.start();
     }
 
@@ -46,7 +45,7 @@ class FeedGenerator {
         const [count, latest, d1State] = await Promise.all([
             this.storage.getReadingCount(),
             this.storage.getLatestReading(),
-            this.storage.getD1FeedState() // Checks d-1 state directly from DB
+            this.storage.getD1FeedState()
         ]);
         const d1Active = Boolean(d1State && d1State.running);
         return {
@@ -81,21 +80,20 @@ class FeedGenerator {
     async tick() {
         if (!this.running) return;
 
-        // Check d-1's running state directly from the shared database (instant & reliable)
         const d1State = await this.storage.getD1FeedState();
         const d1IsActive = Boolean(d1State && d1State.running);
 
         if (d1IsActive) {
-            // Condition 1: d-1 is working -> d-2 stays completely idle
             this.wasD1ActiveLastCheck = true;
             this.lastTickAt = Date.now();
             if (this.running) {
-                this.schedule(this.tickMs);
+                const elapsed = Date.now() - this.lastTickAt;
+                const nextDelay = Math.max(0, this.tickMs - elapsed);
+                this.schedule(nextDelay);
             }
             return;
         }
 
-        // Condition 2: d-1 is interrupted! 
         if (this.wasD1ActiveLastCheck) {
             const latest = await this.storage.getLatestReading();
             if (latest) {
@@ -105,7 +103,7 @@ class FeedGenerator {
                     }
                 }
             }
-            this.wasD1ActiveLastCheck = false; // d-2 takes over
+            this.wasD1ActiveLastCheck = false;
         }
 
         const now = Date.now();
@@ -125,7 +123,9 @@ class FeedGenerator {
 
         this.lastTickAt = now;
         if (this.running) {
-            this.schedule(Math.max(0, this.lastTickAt + this.tickMs - Date.now()));
+            const elapsed = Date.now() - now;
+            const nextDelay = Math.max(0, this.tickMs - elapsed);
+            this.schedule(nextDelay);
         }
     }
 }
