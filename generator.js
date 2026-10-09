@@ -7,9 +7,6 @@ const DEFAULTS = {
     TCS_dP_P1_P2: { start: 1.363, min: 0, max: 2.0, volatility: 0.04 }
 };
 
-// Pulls the live Voroa URL for d-1 from environment variables
-const DEVICE_1_URL = process.env.DEVICE_1_URL || "https://d-1.getvoroa.com";
-
 function initialValues() {
     return Object.fromEntries(Object.entries(DEFAULTS).map(([key, cfg]) => [key, cfg.start]));
 }
@@ -22,48 +19,62 @@ function nextValue(previous, cfg) {
 
 class FeedGenerator {
     constructor(storage, stream, tickMs = 1000) {
-        this.storage = storage; this.stream = stream; this.tickMs = tickMs;
-        this.timer = null; this.running = false; this.values = initialValues(); this.lastTickAt = 0;
-        
-        this.interrupted = false; // D2's local interrupt switch
-    }
-
-    toggleInterrupt(isInterrupted) {
-        this.interrupted = isInterrupted;
-        return { success: true, interrupted: this.interrupted };
-    }
-
-    // Ping Device-1 (d-1) over the internet
-    async isDevice1Active() {
-        try {
-            const response = await fetch(`${DEVICE_1_URL}/api/feed/status`, { timeout: 800 });
-            if (!response.ok) return false;
-            const data = await response.json();
-            return data.running === true; 
-        } catch (error) {
-            return false; // d-1 is offline / failed
-        }
+        this.storage = storage;
+        this.stream = stream;
+        this.tickMs = tickMs;
+        this.timer = null;
+        this.running = false;
+        this.values = initialValues();
+        this.lastTickAt = 0;
+        this.d1Url = process.env.DEVICE_1_URL || "https://d-1.getvoroa.com";
+        this.wasD1ActiveLastCheck = true; // Tracks state transition
     }
 
     async initialize() {
         const state = await this.storage.getFeedState();
         this.values = { ...initialValues(), ...(state.last_values || {}) };
         const latest = await this.storage.getLatestReading();
-        if (latest) for (const key of Object.keys(DEFAULTS)) {
-            if (Number.isFinite(Number(latest[key]))) this.values[key] = Number(latest[key]);
+        if (latest) {
+            for (const key of Object.keys(DEFAULTS)) {
+                if (Number.isFinite(Number(latest[key]))) this.values[key] = Number(latest[key]);
+            }
         }
-        if (state.running) await this.start();
+        // Start d-2 in background monitoring mode
+        await this.start();
     }
 
     async status() {
-        const [state, count, latest] = await Promise.all([this.storage.getFeedState(), this.storage.getReadingCount(), this.storage.getLatestReading()]);
-        return { running: state.running, count, latestId: latest ? latest.id : 0, latestTimestamp: latest ? latest.timestamp : null };
+        const [count, latest] = await Promise.all([
+            this.storage.getReadingCount(),
+            this.storage.getLatestReading()
+        ]);
+        const d1Active = await this.checkD1Active();
+        return {
+            running: this.running,
+            d1Active: d1Active,
+            activeWorker: d1Active ? "d-1 (Primary Active)" : "d-2 (Redundant Failover Active)",
+            count,
+            latestId: latest ? latest.id : 0,
+            latestTimestamp: latest ? latest.timestamp : null
+        };
+    }
+
+    async checkD1Active() {
+        try {
+            const res = await fetch(`${this.d1Url}/api/status`, { signal: AbortSignal.timeout(2000) });
+            if (res.ok) {
+                const data = await res.json();
+                return Boolean(data.running);
+            }
+        } catch {
+            // If d-1 cannot be reached, assume it's down/interrupted
+        }
+        return false;
     }
 
     async start() {
         if (this.running) return this.status();
         this.running = true;
-        await this.storage.setFeedState(true, this.values);
         this.lastTickAt = Date.now();
         this.schedule(this.tickMs);
         return this.status();
@@ -73,7 +84,6 @@ class FeedGenerator {
         this.running = false;
         if (this.timer) clearTimeout(this.timer);
         this.timer = null;
-        await this.storage.setFeedState(false, this.values);
         return this.status();
     }
 
@@ -83,28 +93,54 @@ class FeedGenerator {
 
     async tick() {
         if (!this.running) return;
+
+        // Check if d-1 is currently working/active
+        const d1IsActive = await this.checkD1Active();
+
+        if (d1IsActive) {
+            // Condition: d-1 is working -> d-2 stays completely idle
+            this.wasD1ActiveLastCheck = true;
+            this.lastTickAt = Date.now();
+            if (this.running) {
+                this.schedule(this.tickMs);
+            }
+            return;
+        }
+
+        // Condition: d-1 is interrupted! 
+        // If d-2 was just idle, sync values instantly to where d-1 left off from the shared DB
+        if (this.wasD1ActiveLastCheck) {
+            const latest = await this.storage.getLatestReading();
+            if (latest) {
+                for (const key of Object.keys(DEFAULTS)) {
+                    if (Number.isFinite(Number(latest[key]))) {
+                        this.values[key] = Number(latest[key]);
+                    }
+                }
+            }
+            this.wasD1ActiveLastCheck = false; // Mark that d-2 has taken over
+        }
+
         const now = Date.now();
         const row = { timestamp: new Date(now).toISOString() };
-        
-        // REDUNDANT FAILOVER LOGIC:
-        // d-2 runs ONLY IF d-1 is INACTIVE (!d1_active) AND d-2 hasn't been manually interrupted
-        const d1_active = await this.isDevice1Active();
-        const isD2Running = !d1_active && !this.interrupted;
 
         for (const [key, cfg] of Object.entries(DEFAULTS)) {
             this.values[key] = nextValue(this.values[key], cfg);
-            row[key] = isD2Running ? this.values[key] : 0; 
+            row[key] = this.values[key];
         }
-        
+
         try {
+            // d-2 writes the active failover stream into the shared table
             const saved = await this.storage.saveReading(row);
-            await this.storage.setFeedState(this.running, this.values);
             this.stream.publish(saved);
         } catch (error) {
-            console.error("Sensor reading could not be persisted", error);
+            console.error("D-2 failover reading could not be persisted", error);
         }
+
         this.lastTickAt = now;
-        if (this.running) this.schedule(Math.max(0, this.lastTickAt + this.tickMs - Date.now()));
+        if (this.running) {
+            this.schedule(Math.max(0, this.lastTickAt + this.tickMs - Date.now()));
+        }
     }
 }
 

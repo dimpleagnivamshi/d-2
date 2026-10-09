@@ -419,34 +419,3 @@ renderDashboard().then(function () {
     console.error("Dashboard failed to load:", error);
     setLiveStatus("Dashboard load failed: " + error.message, false);
 });
-
-/* =====================================================
-   DEVICE 2 INTERRUPT TOGGLE LOGIC
-   ===================================================== */
-
-let d2_interrupted = false;
-
-async function toggleInterrupt(device) {
-    if (device !== 'd2') return;
-    
-    d2_interrupted = !d2_interrupted;
-    const btn = document.getElementById('btn-interrupt-d2');
-    
-    if (d2_interrupted) {
-        btn.style.background = "#dc2626";
-        btn.innerText = "Resume Device 2 (Currently Interrupted)";
-    } else {
-        btn.style.background = "#0891b2";
-        btn.innerText = "Interrupt Device 2 (Dependent)";
-    }
-
-    try {
-        await fetch('/api/device2/interrupt', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ interrupt: d2_interrupted })
-        });
-    } catch (err) {
-        console.error(`Failed to toggle interrupt:`, err);
-    }
-}
