@@ -59,15 +59,20 @@ class FeedGenerator {
         };
     }
 
-    async checkD1Active() {
+   async checkD1Active() {
         try {
-            const res = await fetch(`${this.d1Url}/api/status`, { signal: AbortSignal.timeout(2000) });
+            const res = await fetch(`${this.d1Url}/api/status`, { 
+                signal: AbortSignal.timeout(3000) 
+            });
             if (res.ok) {
                 const data = await res.json();
+                console.log("D-1 status check response:", data);
                 return Boolean(data.running);
+            } else {
+                console.warn(`D-1 status check failed with HTTP status: ${res.status}`);
             }
-        } catch {
-            // If d-1 cannot be reached, assume it's down/interrupted
+        } catch (err) {
+            console.error("Error fetching D-1 status from:", `${this.d1Url}/api/status`, err.message);
         }
         return false;
     }
